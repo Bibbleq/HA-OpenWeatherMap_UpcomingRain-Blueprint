@@ -2,6 +2,8 @@
 
 A Home Assistant Blueprint that monitors minute-by-minute weather forecasts and updates helper entities with rain predictions.
 
+📚 **[Quick Start Guide](QUICK_START.md)** | Get set up in 5 minutes!
+
 ## Features
 
 - 🌧️ **Rain Detection**: Identifies if rain is expected within the next hour
