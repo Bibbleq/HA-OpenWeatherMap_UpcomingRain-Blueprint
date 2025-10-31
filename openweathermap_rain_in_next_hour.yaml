@@ -91,18 +91,20 @@ actions:
 
   - variables:
       weather_entity_id: !input weather_entity
-      rain_threshold: !input rain_threshold
+      rain_threshold_mm_per_min: !input rain_threshold
+      rain_threshold_mm_per_hr: >
+        {{ (rain_threshold_mm_per_min | float(0) * 60) | float(0) }}
       max_mm_per_hr: >
         {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | max) | float(0) }}
       total_mm_next_hour: >
         {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | sum) | float(0) | round(2) }}
       rain_soon: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | select('>', rain_threshold) | list | length) > 0 }}
+        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | select('>', rain_threshold_mm_per_hr) | list | length) > 0 }}
       minutes_until_rain: >
         {% set forecast = Minute_Weather[weather_entity_id]['forecast'] %}
         {% set ns = namespace(idx=None) %}
         {% for item in forecast %}
-          {% if ns.idx is none and (item.precipitation | float(0)) > rain_threshold %}
+          {% if ns.idx is none and (item.precipitation | float(0)) > rain_threshold_mm_per_hr %}
             {% set ns.idx = loop.index0 %}
           {% endif %}
         {% endfor %}
