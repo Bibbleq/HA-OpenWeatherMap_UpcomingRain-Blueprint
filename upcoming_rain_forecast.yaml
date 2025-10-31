@@ -1,0 +1,186 @@
+blueprint:
+  name: Rain Within Hour (OpenWeatherMap Minute Forecast)
+  description: >
+    Monitors OpenWeatherMap minute forecast to detect rain within the next hour.
+    Updates helper entities with rain predictions including intensity, minutes until rain, and total precipitation.
+    Checks for updates every 10 minutes.
+    
+    Requires the OpenWeatherMap integration with minute forecast support and four helper entities to be pre-created.
+  domain: automation
+  input:
+    weather_entity:
+      name: Weather Provider Entity
+      description: The OpenWeatherMap weather entity that provides minute forecast data
+      selector:
+        entity:
+          filter:
+            - domain: weather
+    rain_boolean:
+      name: Rain Within Hour (Boolean Helper)
+      description: Input boolean to indicate if rain is expected within the hour
+      selector:
+        entity:
+          filter:
+            - domain: input_boolean
+    minutes_until_rain_number:
+      name: Minutes Until Rain (Number Helper)
+      description: Input number to store minutes until rain starts
+      selector:
+        entity:
+          filter:
+            - domain: input_number
+    max_mm_number:
+      name: Max MM Within Hour (Number Helper)
+      description: Input number to store maximum precipitation rate (mm/hr)
+      selector:
+        entity:
+          filter:
+            - domain: input_number
+    rain_intensity_select:
+      name: Rain Intensity (Select Helper)
+      description: Input select to store rain intensity level (None, Light, Moderate, Heavy, Violent)
+      selector:
+        entity:
+          filter:
+            - domain: input_select
+    rain_threshold:
+      name: Rain Threshold (mm/min)
+      description: Minimum precipitation rate to consider as rain (mm per minute)
+      default: 0.05
+      selector:
+        number:
+          min: 0.01
+          max: 1.0
+          step: 0.01
+          unit_of_measurement: mm/min
+
+alias: Rain within hour (Weather forecast → helpers)
+triggers:
+  - trigger: time_pattern
+    minutes: "/10"
+
+actions:
+  - action: weather_provider.get_minute_forecast
+    target:
+      entity_id: !input weather_entity
+    data: {}
+    response_variable: Minute_Weather
+
+  - variables:
+      weather_entity_id: !input weather_entity
+      minutes_list: |
+        {% set src = Minute_Weather %}
+        {% if src is mapping %}
+          {% set forecast = src.get(weather_entity_id) %}
+          {% if forecast is mapping %}
+            {{ forecast.get('forecast', []) }}
+          {% else %}
+            []
+          {% endif %}
+        {% elif src is iterable and src is not string %}
+          {{ src }}
+        {% else %}
+          []
+        {% endif %}
+      rain_threshold: !input rain_threshold
+      precip_vals: |
+        {% set vals = [] %}
+        {% for it in minutes_list %}
+          {% if it is mapping %}
+            {% set vals = vals + [ (it.get('precipitation', 0) | float(0)) ] %}
+          {% else %}
+            {% set vals = vals + [ 0 ] %}
+          {% endif %}
+        {% endfor %}
+        {{ vals }}
+      max_mm_per_min: |
+        {% if not precip_vals %}
+          0
+        {% else %}
+          {{ (precip_vals | max) | float(0) }}
+        {% endif %}
+      max_mm_per_hr: |
+        {{ (max_mm_per_min | float(0) * 60) | float(0) }}
+      total_mm_next_hour: |
+        {% if not precip_vals %}
+          0
+        {% else %}
+          {{ (precip_vals | sum) | float(0) | round(2) }}
+        {% endif %}
+      rain_soon: |
+        {% if not precip_vals %}
+          false
+        {% else %}
+          {{ (precip_vals | select('>', rain_threshold) | list | length) > 0 }}
+        {% endif %}
+      minutes_until_rain: |
+        {% if not precip_vals %}
+          {{ None }}
+        {% else %}
+          {% set idx = None %}
+          {% for i in range(precip_vals | length) %}
+            {% if (precip_vals[i] | float(0)) > rain_threshold %}
+              {% set idx = i %}
+              {% break %}
+            {% endif %}
+          {% endfor %}
+          {{ idx }}
+        {% endif %}
+      rain_intensity: |
+        {% set r = max_mm_per_hr | float(0) %}
+        {% if not rain_soon or r < 0.1 %}
+          'None'
+        {% elif r < 2.5 %}
+          'Light'
+        {% elif r < 10 %}
+          'Moderate'
+        {% elif r < 50 %}
+          'Heavy'
+        {% else %}
+          'Violent'
+        {% endif %}
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ rain_soon }}"
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: !input rain_boolean
+          - action: input_number.set_value
+            target:
+              entity_id: !input minutes_until_rain_number
+            data:
+              value: "{{ (minutes_until_rain | default(0)) | int(0) }}"
+          - action: input_number.set_value
+            target:
+              entity_id: !input max_mm_number
+            data:
+              value: "{{ (max_mm_per_hr | float(0)) | round(1) }}"
+          - action: input_select.select_option
+            target:
+              entity_id: !input rain_intensity_select
+            data:
+              option: "{{ rain_intensity }}"
+    default:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: !input rain_boolean
+      - action: input_number.set_value
+        target:
+          entity_id: !input minutes_until_rain_number
+        data:
+          value: 0
+      - action: input_number.set_value
+        target:
+          entity_id: !input max_mm_number
+        data:
+          value: 0
+      - action: input_select.select_option
+        target:
+          entity_id: !input rain_intensity_select
+        data:
+          option: 'None'
+
+mode: single
