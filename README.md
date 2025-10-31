@@ -17,6 +17,7 @@ A Home Assistant blueprint that monitors OpenWeatherMap minute forecast data to 
 You need the OpenWeatherMap integration configured with minute forecast support:
 - Set up the [OpenWeatherMap integration](https://www.home-assistant.io/integrations/openweathermap/) in Home Assistant
 - Ensure your API key supports minute forecast (available with One Call API 3.0)
+- Your weather provider must support the `weather_provider.get_minute_forecast` service call
 
 ### 2. Helper Entities
 Create the following helper entities before using this blueprint:

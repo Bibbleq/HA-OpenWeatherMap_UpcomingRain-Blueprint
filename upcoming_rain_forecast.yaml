@@ -129,15 +129,15 @@ actions:
       rain_intensity: |
         {% set r = max_mm_per_hr | float(0) %}
         {% if not rain_soon or r < 0.1 %}
-          None
+          'None'
         {% elif r < 2.5 %}
-          Light
+          'Light'
         {% elif r < 10 %}
-          Moderate
+          'Moderate'
         {% elif r < 50 %}
-          Heavy
+          'Heavy'
         {% else %}
-          Violent
+          'Violent'
         {% endif %}
 
   - choose:
@@ -181,6 +181,6 @@ actions:
         target:
           entity_id: !input rain_intensity_select
         data:
-          option: None
+          option: 'None'
 
 mode: single
