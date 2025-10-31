@@ -16,7 +16,7 @@ A Home Assistant Blueprint that monitors minute-by-minute weather forecasts and 
 ### Weather Provider
 You need a weather integration that supports minute-level forecasts, such as:
 - **OpenWeatherMap** (with OneCall API)
-- Other providers with `weather_provider.get_minute_forecast` support
+- Other providers with `weather_provider.get_minute_forecast` may work, but not tested
 
 ### Helper Entities
 Before using this blueprint, create the following helper entities in Home Assistant.
