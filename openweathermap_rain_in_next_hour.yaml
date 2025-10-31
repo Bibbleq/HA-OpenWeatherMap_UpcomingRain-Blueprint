@@ -1,9 +1,9 @@
 blueprint:
-  name: Rain Within Hour (Weather Forecast → Helpers)
+  name: Rain Within Hour (OpenWeatherMap → Helpers)
   description: |
     Monitor minute-by-minute weather forecast and update helper entities with rain predictions.
     
-    This blueprint polls a weather provider for minute-level precipitation forecasts and updates
+    This blueprint polls OpenWeatherMap for minute-level precipitation forecasts and updates
     helper entities with information about upcoming rain, including:
     - Whether rain is expected within the hour
     - Minutes until rain starts
@@ -11,8 +11,8 @@ blueprint:
     - Rain intensity classification (None, Light, Moderate, Heavy, Violent)
     
     **Requirements:**
-    - Home Assistant 2024.2 or later (for weather_provider.get_minute_forecast action)
-    - Weather integration with minute forecast support (e.g., OpenWeatherMap with OneCall API)
+    - Home Assistant 2024.2 or later
+    - OpenWeatherMap integration with OneCall API configured
     
     **Required Helpers:**
     - Input Boolean: Rain within hour status
@@ -24,11 +24,12 @@ blueprint:
   
   input:
     weather_entity:
-      name: Weather Provider Entity
-      description: The weather entity that provides minute forecast data (e.g., weather.home from OpenWeatherMap)
+      name: OpenWeatherMap Weather Entity
+      description: The OpenWeatherMap weather entity that provides minute forecast data (e.g., weather.openweathermap)
       selector:
         entity:
           domain: weather
+          integration: openweathermap
     
     poll_interval:
       name: Poll Interval Pattern
@@ -76,13 +77,13 @@ blueprint:
         entity:
           domain: input_select
 
-alias: Rain within hour (Weather forecast → helpers)
+alias: Rain within hour (OpenWeatherMap → helpers)
 triggers:
   - trigger: time_pattern
     minutes: !input poll_interval
 
 actions:
-  - action: weather_provider.get_minute_forecast
+  - action: openweathermap.get_minute_forecast
     target:
       entity_id: !input weather_entity
     data: {}
