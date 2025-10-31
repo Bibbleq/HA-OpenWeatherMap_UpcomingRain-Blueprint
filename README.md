@@ -87,7 +87,9 @@ After importing the blueprint, create a new automation:
 4. Configure the following inputs:
 
    - **Weather Provider Entity**: Select your weather entity (e.g., `weather.home`)
-   - **Poll Interval**: How often to check (default: 10 minutes)
+   - **Poll Interval Pattern**: Time pattern for polling (default: "/10" for every 10 minutes)
+     - Use "/5" for every 5 minutes, "/15" for every 15 minutes, etc.
+     - Use "0,30" for twice per hour (at :00 and :30)
    - **Rain Threshold**: Minimum mm/min to consider as rain (default: 0.05)
    - **Input Boolean - Rain Within Hour**: Select your toggle helper
    - **Input Number - Minutes Until Rain**: Select your minutes helper

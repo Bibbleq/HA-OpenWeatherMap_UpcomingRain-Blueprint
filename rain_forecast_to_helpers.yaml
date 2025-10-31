@@ -10,6 +10,10 @@ blueprint:
     - Maximum precipitation rate
     - Rain intensity classification (None, Light, Moderate, Heavy, Violent)
     
+    **Requirements:**
+    - Home Assistant 2024.2 or later (for weather_provider.get_minute_forecast action)
+    - Weather integration with minute forecast support (e.g., OpenWeatherMap with OneCall API)
+    
     **Required Helpers:**
     - Input Boolean: Rain within hour status
     - Input Number: Minutes until rain (0-60)
@@ -27,14 +31,11 @@ blueprint:
           domain: weather
     
     poll_interval:
-      name: Poll Interval (minutes)
-      description: How often to check the weather forecast (every X minutes)
-      default: 10
+      name: Poll Interval Pattern
+      description: Time pattern for how often to check (e.g., "/10" for every 10 minutes, "/5" for every 5 minutes)
+      default: "/10"
       selector:
-        number:
-          min: 1
-          max: 60
-          unit_of_measurement: minutes
+        text:
     
     rain_threshold:
       name: Rain Threshold (mm/min)

@@ -17,7 +17,7 @@ The blueprint wrapper was added with:
 
 | Original | Blueprint Input | Purpose |
 |----------|----------------|---------|
-| `minutes: /10` | `!input poll_interval` | Configurable polling frequency |
+| `minutes: /10` | `!input poll_interval` | Configurable time pattern (text input) |
 | `weather.placeholder_provider` | `!input weather_entity` | User-selected weather entity |
 | `rain_threshold: 0.05` | `!input rain_threshold` | Adjustable rain detection threshold |
 | `input_boolean.placeholder_rain_within_hour` | `!input boolean_rain_within_hour` | User's boolean helper |
@@ -100,10 +100,11 @@ Use different rain thresholds for various use cases:
 - High threshold (0.10) for serious rain only
 
 ### Variable Polling
-Adjust polling frequency based on needs:
-- Every 5 minutes during rain season
-- Every 15 minutes during dry season
-- Every minute when rain is imminent (via separate automation)
+Adjust polling frequency based on needs using time patterns:
+- "/5" for every 5 minutes during rain season
+- "/15" for every 15 minutes during dry season
+- "/1" for every minute when rain is imminent (via separate automation)
+- "0,15,30,45" for specific minute marks
 
 ## Testing Recommendations
 
