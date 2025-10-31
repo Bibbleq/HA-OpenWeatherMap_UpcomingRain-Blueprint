@@ -1,0 +1,35 @@
+# Example Helper Entity Configurations
+# Copy these to your configuration.yaml or create them via the UI
+
+input_boolean:
+  rain_within_hour:
+    name: Rain Within Hour
+    icon: mdi:weather-rainy
+
+input_number:
+  minutes_until_rain:
+    name: Minutes Until Rain
+    min: 0
+    max: 60
+    step: 1
+    unit_of_measurement: "min"
+    icon: mdi:timer-sand
+
+  max_mm_within_hour:
+    name: Max mm Within Hour
+    min: 0
+    max: 200
+    step: 0.1
+    unit_of_measurement: "mm"
+    icon: mdi:water
+
+input_select:
+  rain_intensity:
+    name: Rain Intensity
+    options:
+      - None
+      - Light
+      - Moderate
+      - Heavy
+      - Violent
+    icon: mdi:weather-pouring
