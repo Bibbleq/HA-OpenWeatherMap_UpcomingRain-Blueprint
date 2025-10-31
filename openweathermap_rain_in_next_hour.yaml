@@ -91,25 +91,48 @@ actions:
 
   - variables:
       weather_entity_id: !input weather_entity
-      rain_threshold_mm_per_min: !input rain_threshold
-      rain_threshold_mm_per_hr: >
-        {{ (rain_threshold_mm_per_min | float(0) * 60) | float(0) }}
-      max_mm_per_hr: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | max) | float(0) }}
-      total_mm_next_hour: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | sum) | float(0) | round(2) }}
-      rain_soon: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | select('>', rain_threshold_mm_per_hr) | list | length) > 0 }}
-      minutes_until_rain: >
-        {% set forecast = Minute_Weather[weather_entity_id]['forecast'] %}
-        {% set ns = namespace(idx=None) %}
-        {% for item in forecast %}
-          {% if ns.idx is none and (item.precipitation | float(0)) > rain_threshold_mm_per_hr %}
-            {% set ns.idx = loop.index0 %}
-          {% endif %}
-        {% endfor %}
-        {{ ns.idx }}
-      rain_intensity: >
+      minutes_list: |
+        {% set forecast = Minute_Weather[weather_entity_id].forecast %}
+        {{ forecast }}
+      rain_threshold: !input rain_threshold
+      max_mm_per_min: |
+        {% if minutes_list | length > 0 %}
+          {% set precip_values = minutes_list | map(attribute='precipitation', default=0) | map('float') | list %}
+          {{ (precip_values | max) | float(0) }}
+        {% else %}
+          0
+        {% endif %}
+      max_mm_per_hr: |
+        {{ (max_mm_per_min | float(0) * 60) | float(0) }}
+      total_mm_next_hour: |
+        {% if minutes_list | length > 0 %}
+          {% set precip_values = minutes_list | map(attribute='precipitation', default=0) | map('float') | list %}
+          {{ (precip_values | sum) | float(0) | round(2) }}
+        {% else %}
+          0
+        {% endif %}
+      rain_soon: |
+        {% if minutes_list | length > 0 %}
+          {% set precip_values = minutes_list | map(attribute='precipitation', default=0) | map('float') | list %}
+          {{ (precip_values | select('>', rain_threshold) | list | length) > 0 }}
+        {% else %}
+          false
+        {% endif %}
+      minutes_until_rain: |
+        {% if minutes_list | length > 0 %}
+          {% set precip_values = minutes_list | map(attribute='precipitation', default=0) | map('float') | list %}
+          {% set idx = None %}
+          {% for i in range(precip_values | length) %}
+            {% if (precip_values[i] | float(0)) > rain_threshold %}
+              {% set idx = i %}
+              {% break %}
+            {% endif %}
+          {% endfor %}
+          {{ idx }}
+        {% else %}
+          {{ None }}
+        {% endif %}
+      rain_intensity: |
         {% set r = max_mm_per_hr | float(0) %}
         {% if not rain_soon or r < 0.1 %}
           None
