@@ -62,19 +62,19 @@ Before using this blueprint, create the following helper entities in Home Assist
 
 ### Option 1: Direct Import (Easiest)
 
-[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FBibbleq%2FHA-OpenWeatherMap_UpcomingRain-Blueprint%2Fblob%2Fmain%2Frain_forecast_to_helpers.yaml)
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FBibbleq%2FHA-OpenWeatherMap_UpcomingRain-Blueprint%2Fblob%2Fmain%2Fopenweathermap_rain_in_next_hour.yaml)
 
 ### Option 2: Manual Installation
 
-1. Copy the contents of `rain_forecast_to_helpers.yaml`
+1. Copy the contents of `openweathermap_rain_in_next_hour.yaml`
 2. In Home Assistant, go to:
    - Settings → Automations & Scenes → Blueprints
    - Click "Import Blueprint"
-   - Paste the URL: `https://github.com/Bibbleq/HA-OpenWeatherMap_UpcomingRain-Blueprint/blob/main/rain_forecast_to_helpers.yaml`
+   - Paste the URL: `https://github.com/Bibbleq/HA-OpenWeatherMap_UpcomingRain-Blueprint/blob/main/openweathermap_rain_in_next_hour.yaml`
 
 ### Option 3: File System
 
-1. Download `rain_forecast_to_helpers.yaml`
+1. Download `openweathermap_rain_in_next_hour.yaml`
 2. Place it in your Home Assistant `config/blueprints/automation/` directory
 3. Create subdirectory if needed: `config/blueprints/automation/rain_forecast/`
 4. Restart Home Assistant or reload automations

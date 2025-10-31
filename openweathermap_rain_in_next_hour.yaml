@@ -20,7 +20,7 @@ blueprint:
     - Input Number: Max mm/hr within hour (0-200)
     - Input Select: Rain intensity with options: None, Light, Moderate, Heavy, Violent
   domain: automation
-  source_url: https://github.com/Bibbleq/HA-OpenWeatherMap_UpcomingRain-Blueprint
+  source_url: https://github.com/Bibbleq/HA-OpenWeatherMap_UpcomingRain-Blueprint/blob/main/openweathermap_rain_in_next_hour.yaml
   
   input:
     weather_entity:

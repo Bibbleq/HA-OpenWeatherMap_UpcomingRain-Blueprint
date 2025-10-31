@@ -42,12 +42,12 @@ In Home Assistant, go to **Settings → Devices & Services → Helpers** and cre
 
 Click this button:
 
-[![Import Blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FBibbleq%2FHA-OpenWeatherMap_UpcomingRain-Blueprint%2Fblob%2Fmain%2Frain_forecast_to_helpers.yaml)
+[![Import Blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FBibbleq%2FHA-OpenWeatherMap_UpcomingRain-Blueprint%2Fblob%2Fmain%2Fopenweathermap_rain_in_next_hour.yaml)
 
 **Or** manually:
 1. Go to **Settings → Automations & Scenes → Blueprints**
 2. Click **Import Blueprint**
-3. Paste: `https://github.com/Bibbleq/HA-OpenWeatherMap_UpcomingRain-Blueprint/blob/main/rain_forecast_to_helpers.yaml`
+3. Paste: `https://github.com/Bibbleq/HA-OpenWeatherMap_UpcomingRain-Blueprint/blob/main/openweathermap_rain_in_next_hour.yaml`
 
 ## Step 3: Create Automation
 
