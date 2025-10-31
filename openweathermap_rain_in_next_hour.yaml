@@ -107,15 +107,11 @@ actions:
         {% endif %}
       rain_threshold: !input rain_threshold
       precip_vals: |
-        {% set vals = [] %}
-        {% for it in minutes_list %}
-          {% if it is mapping %}
-            {% set vals = vals + [ (it.get('precipitation', 0) | float(0)) ] %}
-          {% else %}
-            {% set vals = vals + [ 0 ] %}
-          {% endif %}
-        {% endfor %}
-        {{ vals }}
+        {% if minutes_list | length > 0 %}
+          {{ minutes_list | map(attribute='precipitation', default=0) | map('float') | list }}
+        {% else %}
+          []
+        {% endif %}
       max_mm_per_min: |
         {% if not precip_vals %}
           0
