@@ -274,7 +274,7 @@ actions:
         sequence:
           - action: input_text.set_value
             target:
-              entity_id: !input raw_minute_forecast
+              entity_id: "{{ raw_minute_forecast_input }}"
             data:
               value: "{{ Minute_Weather[weather_entity_id]['forecast'] | tojson }}"
     default: []
