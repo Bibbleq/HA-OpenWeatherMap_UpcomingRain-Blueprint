@@ -11,11 +11,11 @@ blueprint:
     - Maximum precipitation rate
     - Rain intensity classification (None, Light, Moderate, Heavy, Violent)
 
-    Version: 1.5.5
+    Version: 1.6
 
     **Requirements:**
     - Home Assistant 2024.2 or later
-    - OpenWeatherMap integration with OneCall API configured
+    - OpenWeatherMap integration with OneCall API configured (note: OpenWeatherMap minute forecast precipitation comes in mm/h)
 
     **Required Helpers:**
     - Input Boolean: Rain within hour status
@@ -25,7 +25,7 @@ blueprint:
     - Input Select: Rain intensity with options: None, Light, Moderate, Heavy, Violent
 
     Optional:
-    - Input Text: Raw minute-by-minute forecast (JSON). Only enable if you need raw data retained. Consider excluding it from the recorder to avoid DB bloat.
+    - Input Text: Raw minute-by-minute compact precipitation string. Only enable if you need raw data retained. Consider excluding it from the recorder to avoid DB bloat.
   domain: automation
   source_url: https://github.com/Bibbleq/HA-OpenWeatherMap_UpcomingRain-Blueprint/blob/main/openweathermap_rain_in_next_hour.yaml
 
@@ -106,7 +106,7 @@ blueprint:
 
     raw_minute_forecast:
       name: Input Text - Raw Minute Forecast (optional)
-      description: Optional input_text helper to store raw minute-by-minute forecast JSON. Leave blank in the blueprint input to skip storing raw data. If used, consider excluding this entity from the recorder to avoid DB bloat.
+      description: Optional input_text helper to store compact minute-by-minute precipitation string. Leave blank in the blueprint input to skip storing raw data. If used, consider excluding this entity from the recorder to avoid DB bloat.
       default: ""
       selector:
         entity:
@@ -130,25 +130,34 @@ actions:
       gap_duration: !input gap_duration
       raw_minute_forecast_input: !input raw_minute_forecast
 
-      # Convert forecast precipitation to a list of floats (safe)
-      precip_vals: >
+      # Raw precipitation values pulled from forecast (OpenWeatherMap returns mm/hr)
+      raw_precip: >
         {{ (Minute_Weather[weather_entity_id]['forecast']
             | map(attribute='precipitation', default=0)
             | map('float') | list) }}
 
+      # Convert mm/hr -> mm/min by dividing by 60 (explicit because incoming values are mm/h)
+      precip_vals: >
+        {% set raw = raw_precip %}
+        {% set ns = namespace(out=[]) %}
+        {% for v in raw %}
+          {% set ns.out = ns.out + [ (v / 60.0) ] %}
+        {% endfor %}
+        {{ ns.out }}
+
       # maximum precipitation (mm) among minute entries for the next hour (mm per minute)
       max_mm_per_min: >
-        {{ (precip_vals | max | float(0)) }}
+        {{ (precip_vals | max(default=0) | float(0)) }}
 
-      # convert to mm/hr approximation (mm/min * 60)
+      # convert to mm/hr approximation (mm/min * 60) — this recovers the original mm/hr peak
       max_mm_per_hr: >
-        {{ (max_mm_per_min | float(0) * 60) | round(1) }}
+        {{ (max_mm_per_min * 60) | round(1) }}
 
-      # total mm across the hour (sum of per-minute precipitation)
+      # total mm across the hour (sum of per-minute precipitation in mm/min)
       total_mm_next_hour: >
-        {{ (precip_vals | sum | float(0)) | round(2) }}
+        {{ (precip_vals | sum(default=0) | float(0)) | round(2) }}
 
-      # whether any minute exceeds threshold
+      # whether any minute exceeds threshold (threshold is in mm/min)
       rain_soon: >
         {{ (precip_vals | select('>', (rain_threshold | float(0))) | list | length) > 0 }}
 
@@ -172,7 +181,7 @@ actions:
         {% if start is not none %}
           {% for i in range(start, forecast | length) %}
             {% set p = (forecast[i].precipitation | float(0)) %}
-            {% if p > (rain_threshold | float(0)) %}
+            {% if (p / 60.0) > (rain_threshold | float(0)) %}
               {% set dur.count = dur.count + 1 %}
               {% set dur.dry_count = 0 %}
             {% else %}
@@ -264,8 +273,11 @@ actions:
         data:
           option: None
 
-  # Optional: store raw minute-by-minute forecast compact string if an input_text helper was provided.
-  # We only attempt to set the input_text if the blueprint input is non-empty.
+  # Optional: store raw minute-by-minute compact string in input_text helper (if provided).
+  # Writes a compact CSV-like string using formatting rules:
+  # - exact 0.00 -> "0"
+  # - 0.something -> ".xx" (leading zero removed)
+  # - >=1 -> "N.nn"
   - choose:
       - conditions:
           - condition: template
@@ -276,12 +288,10 @@ actions:
               entity_id: "{{ raw_minute_forecast_input }}"
             data:
               value: >
-                {% set f = Minute_Weather[weather_entity_id]['forecast'] %}
-                {% if not f %}
+                {% set prec = precip_vals %}
+                {% if not prec %}
                   {{ '' }}
                 {% else %}
-                  {# Use precip_vals computed above (list of floats) #}
-                  {% set prec = precip_vals %}
                   {% set ns_raw = namespace(out=[]) %}
                   {% for v in prec %}
                     {% set s = ('%.2f' | format(v | float)) %}
