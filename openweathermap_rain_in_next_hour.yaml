@@ -106,7 +106,7 @@ blueprint:
 
     raw_minute_forecast:
       name: Input Text - Raw Minute Forecast (optional)
-      description: Optional input_text helper to store raw minute-by-minute forecast JSON. Leave blank in the blueprint input to skip storing raw data. If used, consider excluding this entity from the recorder to avoid DB growth.
+      description: Optional input_text helper to store raw minute-by-minute forecast JSON. Leave blank in the blueprint input to skip storing raw data. If used, consider excluding this entity from the[...]
       default: ""
       selector:
         entity:
@@ -272,6 +272,17 @@ actions:
             target:
               entity_id: "{{ raw_minute_forecast_input }}"
             data:
-              value: "{{ Minute_Weather[weather_entity_id]['forecast'] | tojson }}"
+              # Version 3: Coerce every value in each forecast item to string, then tojson.
+              # This avoids datetime (and other non-serializable types) by converting all values to strings.
+              value: >
+                {% set out = [] %}
+                {% for it in Minute_Weather[weather_entity_id]['forecast'] %}
+                  {% set entry = {} %}
+                  {% for k, v in it.items() %}
+                    {% set entry = entry | combine({ (k | string): (v | string) }) %}
+                  {% endfor %}
+                  {% set _ = out.append(entry) %}
+                {% endfor %}
+                {{ out | tojson }}
 
 mode: single
