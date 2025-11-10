@@ -2,26 +2,33 @@ blueprint:
   name: Rain Within Hour (OpenWeatherMap → Helpers)
   description: |
     Monitor minute-by-minute weather forecast and update helper entities with rain predictions.
-    
+
     This blueprint polls OpenWeatherMap for minute-level precipitation forecasts and updates
     helper entities with information about upcoming rain, including:
     - Whether rain is expected within the hour
     - Minutes until rain starts
+    - Expected rain duration (minutes) (with configurable gap tolerance)
     - Maximum precipitation rate
     - Rain intensity classification (None, Light, Moderate, Heavy, Violent)
-    
+
+    Version: 1.5
+
     **Requirements:**
     - Home Assistant 2024.2 or later
     - OpenWeatherMap integration with OneCall API configured
-    
+
     **Required Helpers:**
     - Input Boolean: Rain within hour status
     - Input Number: Minutes until rain (0-60)
+    - Input Number: Expected rain duration (minutes) — use input_number.rain_expected_duration
     - Input Number: Max mm/hr within hour (0-200)
     - Input Select: Rain intensity with options: None, Light, Moderate, Heavy, Violent
+
+    Optional:
+    - Input Text: Raw minute-by-minute forecast (JSON). Only enable if you need raw data retained. Consider excluding it from the recorder to avoid DB bloat.
   domain: automation
   source_url: https://github.com/Bibbleq/HA-OpenWeatherMap_UpcomingRain-Blueprint/blob/main/openweathermap_rain_in_next_hour.yaml
-  
+
   input:
     weather_entity:
       name: OpenWeatherMap Weather Entity
@@ -30,14 +37,14 @@ blueprint:
         entity:
           domain: weather
           integration: openweathermap
-    
+
     poll_interval:
       name: Poll Interval Pattern
       description: Time pattern for how often to check (e.g., "/10" for every 10 minutes, "/5" for every 5 minutes)
       default: "/10"
       selector:
         text:
-    
+
     rain_threshold:
       name: Rain Threshold (mm/min)
       description: Minimum precipitation rate to consider as rain (default 0.05 mm/min)
@@ -48,34 +55,62 @@ blueprint:
           max: 1.0
           step: 0.01
           unit_of_measurement: mm/min
-    
+
+    gap_duration:
+      name: Dry gap tolerance (minutes)
+      description: >
+        Maximum consecutive dry minutes to merge into the same rain event.
+        A value of 0 is strict (no merging). A value of 1 tolerates single-minute drops (recommended).
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 1
+          unit_of_measurement: minutes
+
     boolean_rain_within_hour:
       name: Input Boolean - Rain Within Hour
       description: Helper entity to indicate if rain is expected within the hour
       selector:
         entity:
           domain: input_boolean
-    
+
     number_minutes_until_rain:
       name: Input Number - Minutes Until Rain
       description: Helper entity to store minutes until rain starts (0-60)
       selector:
         entity:
           domain: input_number
-    
+
+    number_rain_expected_duration:
+      name: Input Number - Expected Rain Duration (minutes)
+      description: Helper entity to store expected continuous rain duration in minutes (0-60). Use input_number.rain_expected_duration
+      selector:
+        entity:
+          domain: input_number
+
     number_max_mm_within_hour:
       name: Input Number - Max mm/hr Within Hour
       description: Helper entity to store maximum precipitation rate in mm/hr
       selector:
         entity:
           domain: input_number
-    
+
     select_rain_intensity:
       name: Input Select - Rain Intensity
       description: Helper entity to store rain intensity classification (None, Light, Moderate, Heavy, Violent)
       selector:
         entity:
           domain: input_select
+
+    raw_minute_forecast:
+      name: Input Text - Raw Minute Forecast (optional)
+      description: Optional input_text helper to store raw minute-by-minute forecast JSON. Leave blank in the blueprint input to skip storing raw data. If used, consider excluding this entity from the recorder to avoid DB growth.
+      default: ""
+      selector:
+        entity:
+          domain: input_text
 
 alias: Rain within hour (OpenWeatherMap → helpers)
 triggers:
@@ -92,12 +127,25 @@ actions:
   - variables:
       weather_entity_id: !input weather_entity
       rain_threshold: !input rain_threshold
-      max_mm_per_hr: >
+      gap_duration: !input gap_duration
+
+      # maximum precipitation (mm) among minute entries for the next hour (mm per minute)
+      max_mm_per_min: >
         {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | max) | float(0) }}
+
+      # convert to mm/hr approximation (mm/min * 60)
+      max_mm_per_hr: >
+        {{ (max_mm_per_min | float(0)) * 60 | float(0) | round(1) }}
+
+      # total mm across the hour (sum of per-minute precipitation)
       total_mm_next_hour: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | sum / 60) | float(0) | round(2) }}
+        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | sum) | float(0) | round(2) }}
+
+      # whether any minute exceeds threshold
       rain_soon: >
         {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | select('>', rain_threshold) | list | length) > 0 }}
+
+      # index (0-based) of first minute where precipitation > threshold (minutes until rain)
       minutes_until_rain: >
         {% set forecast = Minute_Weather[weather_entity_id]['forecast'] %}
         {% set ns = namespace(idx=None) %}
@@ -107,6 +155,40 @@ actions:
           {% endif %}
         {% endfor %}
         {{ ns.idx }}
+
+      # expected continuous rain duration (minutes) of the first upcoming rain block after 'minutes_until_rain'
+      # with small-gap tolerance defined by gap_duration (merge dry gaps <= gap_duration)
+      expected_rain_duration: >
+        {% set forecast = Minute_Weather[weather_entity_id]['forecast'] %}
+        {% set start = minutes_until_rain %}
+        {% set gap = gap_duration | int(0) %}
+        {% set dur = namespace(count=0) %}
+        {% if start is not none %}
+          {% set dry_count = 0 %}
+          {% for i in range(start, forecast|length) %}
+            {% set p = (forecast[i].precipitation | float(0)) %}
+            {% if p > rain_threshold %}
+              {% set dur.count = dur.count + 1 %}
+              {% set dry_count = 0 %}
+            {% else %}
+              {% set dry_count = dry_count + 1 %}
+              {% if dry_count <= gap %}
+                {# tolerate this short dry minute and include it in event duration #}
+                {% set dur.count = dur.count + 1 %}
+              {% else %}
+                {# gap exceeded: event ended #}
+                {% break %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+        {{ dur.count }}
+
+      # alternative metric: total rainy minutes in the hour (sum of all minutes exceeding threshold)
+      total_rainy_minutes: >
+        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | select('>', rain_threshold) | list | length) }}
+
+      # rain intensity label
       rain_intensity: >
         {% set r = max_mm_per_hr | float(0) %}
         {% if not rain_soon or r < 0.1 %}
@@ -129,39 +211,72 @@ actions:
           - action: input_boolean.turn_on
             target:
               entity_id: !input boolean_rain_within_hour
+
           - action: input_number.set_value
             target:
               entity_id: !input number_minutes_until_rain
             data:
               value: "{{ (minutes_until_rain | default(0)) | int(0) }}"
+
+          - action: input_number.set_value
+            target:
+              entity_id: !input number_rain_expected_duration
+            data:
+              value: "{{ (expected_rain_duration | default(0)) | int(0) }}"
+
           - action: input_number.set_value
             target:
               entity_id: !input number_max_mm_within_hour
             data:
               value: "{{ (max_mm_per_hr | float(0)) | round(1) }}"
+
           - action: input_select.select_option
             target:
               entity_id: !input select_rain_intensity
             data:
               option: "{{ rain_intensity }}"
+
     default:
       - action: input_boolean.turn_off
         target:
           entity_id: !input boolean_rain_within_hour
+
       - action: input_number.set_value
         target:
           entity_id: !input number_minutes_until_rain
         data:
           value: 0
+
+      - action: input_number.set_value
+        target:
+          entity_id: !input number_rain_expected_duration
+        data:
+          value: 0
+
       - action: input_number.set_value
         target:
           entity_id: !input number_max_mm_within_hour
         data:
           value: 0
+
       - action: input_select.select_option
         target:
           entity_id: !input select_rain_intensity
         data:
           option: None
+
+  # Optional: store raw minute-by-minute forecast JSON if an input_text helper was provided.
+  # We only attempt to set the input_text if the blueprint input is non-empty.
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ (raw_minute_forecast | default('')) != '' }}"
+        sequence:
+          - action: input_text.set_value
+            target:
+              entity_id: !input raw_minute_forecast
+            data:
+              value: "{{ Minute_Weather[weather_entity_id]['forecast'] | tojson }}"
+    default: []
 
 mode: single

@@ -185,6 +185,15 @@ The blueprint categorizes rain intensity based on precipitation rate:
 - The blueprint expects the response structure from `get_minute_forecast`
 - Check Developer Tools → Templates to test: `{{ Minute_Weather }}`
 
+## Changelog
+
+### Version 1.5 — 2025-11-10
+- Added "gap_duration" blueprint input (Dry gap tolerance) and improved expected rain duration calculation to merge short dry gaps (debounce/jitter tolerant).
+- Expected rain duration now uses configurable small-gap tolerance to produce more realistic shower durations.
+- Added Version: 1.5 tag to blueprint header.
+- Optional raw minute-by-minute storage retained; recommended to exclude raw input_text from recorder to avoid DB bloat.
+- Documentation: guidance added for required helpers and recommended defaults.
+
 ## Contributing
 
 Feel free to open issues or submit pull requests to improve this blueprint.
