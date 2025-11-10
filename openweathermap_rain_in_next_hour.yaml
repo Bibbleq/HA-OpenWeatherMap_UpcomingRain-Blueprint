@@ -128,6 +128,7 @@ actions:
       weather_entity_id: !input weather_entity
       rain_threshold: !input rain_threshold
       gap_duration: !input gap_duration
+      raw_minute_forecast_input: !input raw_minute_forecast
 
       # maximum precipitation (mm) among minute entries for the next hour (mm per minute)
       max_mm_per_min: >
@@ -162,17 +163,16 @@ actions:
         {% set forecast = Minute_Weather[weather_entity_id]['forecast'] %}
         {% set start = minutes_until_rain %}
         {% set gap = gap_duration | int(0) %}
-        {% set dur = namespace(count=0) %}
+        {% set dur = namespace(count=0, dry_count=0) %}
         {% if start is not none %}
-          {% set dry_count = 0 %}
           {% for i in range(start, forecast|length) %}
             {% set p = (forecast[i].precipitation | float(0)) %}
             {% if p > rain_threshold %}
               {% set dur.count = dur.count + 1 %}
-              {% set dry_count = 0 %}
+              {% set dur.dry_count = 0 %}
             {% else %}
-              {% set dry_count = dry_count + 1 %}
-              {% if dry_count <= gap %}
+              {% set dur.dry_count = dur.dry_count + 1 %}
+              {% if dur.dry_count <= gap %}
                 {# tolerate this short dry minute and include it in event duration #}
                 {% set dur.count = dur.count + 1 %}
               {% else %}
@@ -270,7 +270,7 @@ actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ (raw_minute_forecast | default('')) != '' }}"
+            value_template: "{{ (raw_minute_forecast_input | default('')) != '' }}"
         sequence:
           - action: input_text.set_value
             target:
