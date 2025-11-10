@@ -11,7 +11,7 @@ blueprint:
     - Maximum precipitation rate
     - Rain intensity classification (None, Light, Moderate, Heavy, Violent)
 
-    Version: 1.5.4
+    Version: 1.5.5
 
     **Requirements:**
     - Home Assistant 2024.2 or later
@@ -106,7 +106,7 @@ blueprint:
 
     raw_minute_forecast:
       name: Input Text - Raw Minute Forecast (optional)
-      description: Optional input_text helper to store raw minute-by-minute forecast JSON. Leave blank in the blueprint input to skip storing raw data. If used, consider excluding this entity from the[...]
+      description: Optional input_text helper to store raw minute-by-minute forecast JSON. Leave blank in the blueprint input to skip storing raw data. If used, consider excluding this entity from the recorder to avoid DB bloat.
       default: ""
       selector:
         entity:
@@ -130,29 +130,34 @@ actions:
       gap_duration: !input gap_duration
       raw_minute_forecast_input: !input raw_minute_forecast
 
+      # Convert forecast precipitation to a list of floats (safe)
+      precip_vals: >
+        {{ (Minute_Weather[weather_entity_id]['forecast']
+            | map(attribute='precipitation', default=0)
+            | map('float') | list) }}
+
       # maximum precipitation (mm) among minute entries for the next hour (mm per minute)
       max_mm_per_min: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | max) | float(0) }}
+        {{ (precip_vals | max | float(0)) }}
 
       # convert to mm/hr approximation (mm/min * 60)
       max_mm_per_hr: >
-        {{ (max_mm_per_min | float(0)) * 60 | float(0) | round(1) }}
+        {{ (max_mm_per_min | float(0) * 60) | round(1) }}
 
       # total mm across the hour (sum of per-minute precipitation)
       total_mm_next_hour: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | sum) | float(0) | round(2) }}
+        {{ (precip_vals | sum | float(0)) | round(2) }}
 
       # whether any minute exceeds threshold
       rain_soon: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | select('>', rain_threshold) | list | length) > 0 }}
+        {{ (precip_vals | select('>', (rain_threshold | float(0))) | list | length) > 0 }}
 
-      # index (0-based) of first minute where precipitation > threshold (minutes until rain)
+      # index (0-based) of first minute where precipitation > threshold (minutes until rain as index n)
       minutes_until_rain: >
-        {% set forecast = Minute_Weather[weather_entity_id]['forecast'] %}
         {% set ns = namespace(idx=None) %}
-        {% for item in forecast %}
-          {% if ns.idx is none and (item.precipitation | float(0)) > rain_threshold %}
-            {% set ns.idx = loop.index0 %}
+        {% for i in range(precip_vals | length) %}
+          {% if ns.idx is none and (precip_vals[i] | float(0)) > (rain_threshold | float(0)) %}
+            {% set ns.idx = i %}
           {% endif %}
         {% endfor %}
         {{ ns.idx }}
@@ -162,21 +167,19 @@ actions:
       expected_rain_duration: >
         {% set forecast = Minute_Weather[weather_entity_id]['forecast'] %}
         {% set start = minutes_until_rain %}
-        {% set gap = gap_duration | int(0) %}
+        {% set gap = (gap_duration | int(0)) %}
         {% set dur = namespace(count=0, dry_count=0) %}
         {% if start is not none %}
-          {% for i in range(start, forecast|length) %}
+          {% for i in range(start, forecast | length) %}
             {% set p = (forecast[i].precipitation | float(0)) %}
-            {% if p > rain_threshold %}
+            {% if p > (rain_threshold | float(0)) %}
               {% set dur.count = dur.count + 1 %}
               {% set dur.dry_count = 0 %}
             {% else %}
               {% set dur.dry_count = dur.dry_count + 1 %}
               {% if dur.dry_count <= gap %}
-                {# tolerate this short dry minute and include it in event duration #}
                 {% set dur.count = dur.count + 1 %}
               {% else %}
-                {# gap exceeded: event ended #}
                 {% break %}
               {% endif %}
             {% endif %}
@@ -184,7 +187,7 @@ actions:
         {% endif %}
         {{ dur.count }}
 
-      # rain intensity label
+      # rain intensity label (based on max mm/hr)
       rain_intensity: >
         {% set r = max_mm_per_hr | float(0) %}
         {% if not rain_soon or r < 0.1 %}
@@ -212,7 +215,7 @@ actions:
             target:
               entity_id: !input number_minutes_until_rain
             data:
-              value: "{{ (minutes_until_rain | default(0)) | int(0) }}"
+              value: "{{ (minutes_until_rain | default(60) ) | int }}"
 
           - action: input_number.set_value
             target:
@@ -261,7 +264,7 @@ actions:
         data:
           option: None
 
-  # Optional: store raw minute-by-minute forecast JSON if an input_text helper was provided.
+  # Optional: store raw minute-by-minute forecast compact string if an input_text helper was provided.
   # We only attempt to set the input_text if the blueprint input is non-empty.
   - choose:
       - conditions:
@@ -272,21 +275,26 @@ actions:
             target:
               entity_id: "{{ raw_minute_forecast_input }}"
             data:
-              # Version 3: Coerce every value in each forecast item to string, then tojson.
-              # Avoid list.append (forbidden in HA sandbox) by using a namespace and reassigning the list.
               value: >
-                {% set forecast = Minute_Weather[weather_entity_id]['forecast'] %}
-                {% if forecast | length == 0 %}
+                {% set f = Minute_Weather[weather_entity_id]['forecast'] %}
+                {% if not f %}
                   {{ '' }}
                 {% else %}
-                  {# Build a list of precipitation values, coerce to integers, stringify, then join with commas (no spaces) #}
-                  {% set prec = forecast
-                     | map(attribute='precipitation', default=0)
-                     | map('float')
-                     | map('int')
-                     | map('string')
-                     | list %}
-                  {{ prec | join(',') }}
+                  {# Use precip_vals computed above (list of floats) #}
+                  {% set prec = precip_vals %}
+                  {% set ns_raw = namespace(out=[]) %}
+                  {% for v in prec %}
+                    {% set s = ('%.2f' | format(v | float)) %}
+                    {% if s == '0.00' %}
+                      {% set token = '0' %}
+                    {% elif s[:2] == '0.' %}
+                      {% set token = s[1:] %}
+                    {% else %}
+                      {% set token = s %}
+                    {% endif %}
+                    {% set ns_raw.out = ns_raw.out + [token] %}
+                  {% endfor %}
+                  {{ ns_raw.out | join(',') }}
                 {% endif %}
 
 mode: single
