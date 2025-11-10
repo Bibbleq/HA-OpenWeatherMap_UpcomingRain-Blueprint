@@ -11,7 +11,7 @@ blueprint:
     - Maximum precipitation rate
     - Rain intensity classification (None, Light, Moderate, Heavy, Violent)
 
-    Version: 1.6
+    Version: 1.6.1
 
     **Requirements:**
     - Home Assistant 2024.2 or later
@@ -147,7 +147,7 @@ actions:
 
       # maximum precipitation (mm) among minute entries for the next hour (mm per minute)
       max_mm_per_min: >
-        {{ (precip_vals | max(default=0) | float(0)) }}
+        {{ ([0] + precip_vals) | max | float(0) }}
 
       # convert to mm/hr approximation (mm/min * 60) — this recovers the original mm/hr peak
       max_mm_per_hr: >
@@ -155,7 +155,7 @@ actions:
 
       # total mm across the hour (sum of per-minute precipitation in mm/min)
       total_mm_next_hour: >
-        {{ (precip_vals | sum(default=0) | float(0)) | round(2) }}
+        {{ (precip_vals | sum | float(0)) | round(2) }}
 
       # whether any minute exceeds threshold (threshold is in mm/min)
       rain_soon: >
