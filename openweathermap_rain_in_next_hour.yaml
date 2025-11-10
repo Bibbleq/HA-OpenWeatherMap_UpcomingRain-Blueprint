@@ -20,7 +20,7 @@ blueprint:
     **Required Helpers:**
     - Input Boolean: Rain within hour status
     - Input Number: Minutes until rain (0-60)
-    - Input Number: Expected rain duration (minutes) — use input_number.rain_expected_duration
+    - Input Number: Expected rain duration (minutes) — e.g., input_number.rain_expected_duration
     - Input Number: Max mm/hr within hour (0-200)
     - Input Select: Rain intensity with options: None, Light, Moderate, Heavy, Violent
 
@@ -85,7 +85,7 @@ blueprint:
 
     number_rain_expected_duration:
       name: Input Number - Expected Rain Duration (minutes)
-      description: Helper entity to store expected continuous rain duration in minutes (0-60). Use input_number.rain_expected_duration
+      description: Helper entity to store expected continuous rain duration in minutes (0-60). E.g., input_number.rain_expected_duration
       selector:
         entity:
           domain: input_number
@@ -183,10 +183,6 @@ actions:
           {% endfor %}
         {% endif %}
         {{ dur.count }}
-
-      # alternative metric: total rainy minutes in the hour (sum of all minutes exceeding threshold)
-      total_rainy_minutes: >
-        {{ (Minute_Weather[weather_entity_id]['forecast'] | map(attribute='precipitation', default=0) | map('float') | select('>', rain_threshold) | list | length) }}
 
       # rain intensity label
       rain_intensity: >
