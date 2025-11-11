@@ -92,7 +92,7 @@ After importing the blueprint, create a new automation:
    - **Poll Interval Pattern**: Time pattern for polling (default: "/10" for every 10 minutes)
      - Use "/5" for every 5 minutes, "/15" for every 15 minutes, etc.
      - Use "0,30" for twice per hour (at :00 and :30)
-   - **Rain Threshold**: Minimum mm/min to consider as rain (default: 0.05)
+   - **Rain Threshold**: Minimum mm/h to consider as rain (default: 0.1 mm/h)
    - **Input Boolean - Rain Within Hour**: Select your toggle helper
    - **Input Number - Minutes Until Rain**: Select your minutes helper
    - **Input Number - Max mm/hr Within Hour**: Select your max precipitation helper
@@ -186,6 +186,14 @@ The blueprint categorizes rain intensity based on precipitation rate:
 - Check Developer Tools → Templates to test: `{{ Minute_Weather }}`
 
 ## Changelog
+
+### Version 1.6.2 — 2025-01-11
+- **CRITICAL FIX**: Changed rain threshold from mm/min to mm/h for proper light rain detection
+  - Default threshold now 0.1 mm/h (was 0.05 mm/min = 3.0 mm/h)
+  - Rain detection now uses raw precipitation values (mm/h) directly
+  - Much more user-friendly threshold configuration
+- **FIXED**: Duration calculation now only counts actual rain minutes, not tolerated dry gaps
+- **ENHANCED**: Improved raw data compression with smart digit dropping to fit in 255 chars
 
 ### Version 1.5 — 2025-11-10
 - Added "gap_duration" blueprint input (Dry gap tolerance) and improved expected rain duration calculation to merge short dry gaps (debounce/jitter tolerant).
