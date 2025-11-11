@@ -1,0 +1,33 @@
+{# OpenWeatherMap-RainValues-Testing-Template-v2 #}
+
+{% set precip_vals = [0, 0, 0, 0.05, 0.05, 0, 0.1, 0.2, 0, 0] %}
+{% set raw_precip = [0, 0, 0, 0.1, 0.2, 0.3, 0.4, 0, 0, 0] %}
+{% set rain_threshold = 0.1 %} {# mm/h #}
+
+{# Compressed storage with run-length encoding #}
+{% set compressed_raw_precip = "" %}
+{% for value in raw_precip %}
+    {% if value == 0 %}
+        {% if loop.index > 1 and raw_precip[loop.index0-1] == 0 %}
+            {% set count = loop.index - loop.index0 - 1 %}
+            {% if count >= 3 %}
+                {% set compressed_raw_precip = compressed_raw_precip + "0" + (count + 1) | string %}
+            {% endif %}
+        {% else %}
+            {% set compressed_raw_precip = compressed_raw_precip + "0" %}
+        {% endif %}
+    {% else %}
+        {% set compressed_raw_precip = compressed_raw_precip + value | string %}
+    {% endif %}
+{% endfor %}
+
+{# Validation tests for new logic #}
+{% set rain_detected = any(value >= rain_threshold for value in raw_precip) %}
+{% if rain_detected %}
+    Rain detected!
+{% else %}
+    No rain detected.
+{% endif %}
+
+{% set volume_calculation = sum(precip / 60 for precip in precip_vals) %}
+Total volume calculated: {{ volume_calculation }} mm/min
